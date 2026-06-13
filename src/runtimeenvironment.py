@@ -30,22 +30,24 @@ class ExtraTab:
 
 
 @dataclass
-class ExtraGroup:
-    """Descriptor for a custom preferences group appended to an existing tab.
+class ExtraField:
+    """Descriptor for a custom row injected into a built-in tab's column.
 
-    Unlike :class:`ExtraTab`, this injects content into one of the built-in
-    tabs.  The group is appended to the end of the tab's content box, so it
-    needs no positional anchoring (which libadwaita's containers don't support
-    cleanly anyway).
+    The 'general' and 'advanced' tabs lay their AdwPreferencesGroups out
+    horizontally — each group is a column.  This appends a row to the bottom of
+    the group in the chosen column, so it adds a field without widening the tab
+    (appending a whole new group would add a third column and overflow the
+    window).  No positional anchoring within the column (which libadwaita's
+    containers don't support cleanly anyway); the row goes at the bottom.
 
     Attributes:
-        tab_name:      Name of the built-in tab to append into ('general',
-                       'shortcuts', or 'advanced').
-        build_widget:  Zero-argument callable that returns the Gtk.Widget to
-                       append (typically an AdwPreferencesGroup).  Called once
-                       at init time.
+        tab_name:      Name of the built-in tab ('general' or 'advanced').
+        column:        Zero-based column index within that tab (0 or 1).
+        build_widget:  Zero-argument callable returning the AdwPreferencesRow
+                       to append.  Called once at init time.
     """
     tab_name: str
+    column: int
     build_widget: Callable
 
 
@@ -63,7 +65,9 @@ class NullVirtualDisplayManager(GObject.GObject):
 
     def __init__(self):
         GObject.GObject.__init__(self)
-        self._displays = []
+        # plain attribute (not _displays) so consumers can read `.displays`
+        # directly, matching the real VirtualDisplayManager interface
+        self.displays = []
 
     def create_virtual_display(self, width, height, framerate):
         return None
@@ -73,11 +77,11 @@ class NullVirtualDisplayManager(GObject.GObject):
 
     def do_set_property(self, prop, value):
         if prop.name == 'displays':
-            self._displays = value
+            self.displays = value
 
     def do_get_property(self, prop):
         if prop.name == 'displays':
-            return self._displays
+            return self.displays
 
 
 class RuntimeEnvironment(GObject.GObject):
@@ -248,22 +252,23 @@ class RuntimeEnvironment(GObject.GObject):
         return []
 
     @property
-    def extra_groups(self):
-        """Return an ordered list of :class:`ExtraGroup` descriptors to append.
+    def extra_fields(self):
+        """Return an ordered list of :class:`ExtraField` descriptors to inject.
 
-        Each :class:`ExtraGroup` is appended to the content box of a built-in
-        tab.  Use this to add a self-contained preferences group (e.g. a
-        runtime-specific virtual-displays interface) without giving it its own
-        tab.  The connected-device view calls ``build_widget()`` once during
-        initialisation.
+        Each :class:`ExtraField` appends a row to the bottom of the preferences
+        group in the given column of a built-in tab ('general' or 'advanced',
+        each of which has two columns).  Use this to add a field where a
+        built-in one was hidden, without widening the tab.  The connected-device
+        view calls ``build_widget()`` once during initialisation.
 
         Example::
 
             @property
-            def extra_groups(self):
-                return [ExtraGroup(
+            def extra_fields(self):
+                return [ExtraField(
                     tab_name='general',
-                    build_widget=self._build_virtual_displays_group,
+                    column=0,
+                    build_widget=self._build_virtual_displays_row,
                 )]
         """
         return []

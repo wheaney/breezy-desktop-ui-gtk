@@ -1,4 +1,4 @@
-from gi.repository import Gio, GLib, Gtk, GObject
+from gi.repository import Adw, Gio, GLib, Gtk, GObject
 from .configmanager import ConfigManager
 from .customresolutiondialog import CustomResolutionDialog
 from .displaydistancedialog import DisplayDistanceDialog
@@ -265,15 +265,18 @@ class ConnectedDevice(Gtk.Box):
             widget = tab.build_widget()
             self.stack.add_titled_with_icon(widget, tab.name, tab.title, tab.icon_name)
 
-        for group in self.runtime.extra_groups:
-            container = self.stack.get_child_by_name(group.tab_name)
-            if container is None:
-                logger.warning('extra_groups: unknown tab %r', group.tab_name)
-                continue
+        for field in self.runtime.extra_fields:
+            container = self.stack.get_child_by_name(field.tab_name)
             if not isinstance(container, Gtk.Box):
-                logger.warning('extra_groups: tab %r content is not a Gtk.Box', group.tab_name)
+                logger.warning('extra_fields: tab %r content is not a Gtk.Box', field.tab_name)
                 continue
-            container.append(group.build_widget())
+            # The tab's columns are its AdwPreferencesGroup children, laid out
+            # horizontally; add the row to the group in the requested column.
+            columns = [c for c in container if isinstance(c, Adw.PreferencesGroup)]
+            if not 0 <= field.column < len(columns):
+                logger.warning('extra_fields: tab %r has no column %r', field.tab_name, field.column)
+                continue
+            columns[field.column].add(field.build_widget())
 
     def _bind_scale_to_config(self, scale, config_key):
         self.config_manager.bind_property(config_key, scale, 'value', Gio.SettingsBindFlags.DEFAULT)
