@@ -86,6 +86,7 @@ class ConnectedDevice(Gtk.Box):
     viewport_offset_y_scale = Gtk.Template.Child()
     viewport_offset_y_adjustment = Gtk.Template.Child()
     units_menu = Gtk.Template.Child()
+    stack = Gtk.Template.Child()
 
     def __init__(self):
         super(Gtk.Box, self).__init__()
@@ -111,7 +112,6 @@ class ConnectedDevice(Gtk.Box):
         ]
 
         self.settings = SettingsManager.get_instance().settings
-        self.desktop_settings = SettingsManager.get_instance().desktop_settings
         self.ipc = XRDriverIPC.get_instance()
         self.runtime = RuntimeEnvironment.get_instance()
         self.virtual_display_manager = self.runtime.virtual_display_manager
@@ -134,7 +134,6 @@ class ConnectedDevice(Gtk.Box):
         self.settings.bind('viewport-offset-x', self.viewport_offset_x_adjustment, 'value', Gio.SettingsBindFlags.DEFAULT)
         self.settings.bind('viewport-offset-y', self.viewport_offset_y_adjustment, 'value', Gio.SettingsBindFlags.DEFAULT)
         self.settings.connect('changed::monitor-wrapping-scheme', self._handle_monitor_wrapping_scheme_setting_changed)
-        self.desktop_settings.bind('text-scaling-factor', self.text_scaling_adjustment, 'value', Gio.SettingsBindFlags.DEFAULT)
         self.display_zoom_on_focus_switch.connect('notify::active', self._handle_zoom_on_focus_switch_changed)
         self.monitor_wrapping_scheme_menu.connect('changed', self._handle_monitor_wrapping_scheme_menu_changed)
         self._handle_monitor_wrapping_scheme_setting_changed(self.settings, self.settings.get_string('monitor-wrapping-scheme'))
@@ -226,6 +225,55 @@ class ConnectedDevice(Gtk.Box):
         self._load_custom_resolutions()
         for id in self._custom_resolution_options:
             self.add_virtual_display_menu.insert(self._default_resolution_options_count, id, id)
+
+        self._apply_runtime_customisations()
+
+    def _apply_runtime_customisations(self):
+        """Bind runtime fields, hide excluded rows/tabs, add extra tabs/groups."""
+        # Build a name → widget map from all Template.Child attributes so
+        # the runtime hooks can reference widgets by name.
+        field_map = {
+            name: getattr(self, name)
+            for name in dir(self.__class__)
+            if isinstance(getattr(self.__class__, name), Gtk.Template.Child)
+        }
+
+        self.runtime.bind_runtime_fields(self.settings, field_map)
+
+        for field_id in self.runtime.excluded_field_ids:
+            widget = field_map.get(field_id)
+            if widget is None:
+                logger.warning('excluded_field_ids: unknown field %r', field_id)
+                continue
+            # The field may itself be a row (e.g. virtual_displays_row) or a
+            # control nested inside one (e.g. effect_enable_switch). Resolve to
+            # the owning row so we hide the whole row, never the parent group's
+            # internal list box.
+            row = widget if isinstance(widget, Gtk.ListBoxRow) else widget.get_ancestor(Gtk.ListBoxRow)
+            (row or widget).set_visible(False)
+
+        self.runtime.reset_excluded_fields(self.settings)
+
+        for tab_name in self.runtime.excluded_tab_names:
+            child = self.stack.get_child_by_name(tab_name)
+            if child is None:
+                logger.warning('excluded_tab_names: unknown tab %r', tab_name)
+                continue
+            self.stack.get_page(child).set_visible(False)
+
+        for tab in self.runtime.extra_tabs:
+            widget = tab.build_widget()
+            self.stack.add_titled_with_icon(widget, tab.name, tab.title, tab.icon_name)
+
+        for group in self.runtime.extra_groups:
+            container = self.stack.get_child_by_name(group.tab_name)
+            if container is None:
+                logger.warning('extra_groups: unknown tab %r', group.tab_name)
+                continue
+            if not isinstance(container, Gtk.Box):
+                logger.warning('extra_groups: tab %r content is not a Gtk.Box', group.tab_name)
+                continue
+            container.append(group.build_widget())
 
     def _bind_scale_to_config(self, scale, config_key):
         self.config_manager.bind_property(config_key, scale, 'value', Gio.SettingsBindFlags.DEFAULT)

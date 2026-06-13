@@ -71,6 +71,11 @@ PACKAGE_RUNTIMES_DIR=$PACKAGE_BREEZY_SRC_DIR/runtimes
 mkdir -p $PACKAGE_RUNTIMES_DIR
 cp src/runtimes/__init__.py $PACKAGE_RUNTIMES_DIR
 cp $RUNTIME_DIR/*.py $PACKAGE_RUNTIMES_DIR
+# a runtime may ship .ui snippets it loads at runtime via Gtk.Builder (using
+# the 'breezydesktop' translation domain); copy them alongside its modules
+if ls $RUNTIME_DIR/*.ui >/dev/null 2>&1; then
+  cp $RUNTIME_DIR/*.ui $PACKAGE_RUNTIMES_DIR
+fi
 cp -L modules/PyXRLinuxDriverIPC/xrdriveripc.py $PACKAGE_BREEZY_SRC_DIR
 cp $UI_BUILD_PATH/src/breezydesktop.gresource $PACKAGE_BREEZY_DIR
 cp -r po/mo/* $PACKAGE_LOCALE_DIR

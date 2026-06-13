@@ -13,4 +13,3 @@ class SettingsManager:
 
     def __init__(self):
         self.settings = Gio.Settings.new_with_path("com.xronlinux.BreezyDesktop", "/com/xronlinux/BreezyDesktop/")
-        self.desktop_settings = Gio.Settings.new("org.gnome.desktop.interface")

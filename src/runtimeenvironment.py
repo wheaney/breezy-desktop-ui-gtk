@@ -1,4 +1,6 @@
 import gettext
+from dataclasses import dataclass
+from typing import Callable
 
 from gi.repository import GObject
 
@@ -7,6 +9,44 @@ _ = gettext.gettext
 # Default namespace used for XDG directories, application identity, etc. A
 # concrete RuntimeEnvironment should override APP_NAMESPACE.
 DEFAULT_APP_NAMESPACE = 'breezy_gnome'
+
+
+@dataclass
+class ExtraTab:
+    """Descriptor for a custom tab added to the connected-device view.
+
+    Attributes:
+        name:          Unique page name passed to AdwViewStack (must not clash
+                       with built-in names 'general', 'shortcuts', 'advanced').
+        title:         Localised tab label shown in the AdwViewSwitcher.
+        icon_name:     Named icon for the tab (e.g. a symbolic icon name).
+        build_widget:  Zero-argument callable that returns the Gtk.Widget to
+                       use as the page content.  Called once at init time.
+    """
+    name: str
+    title: str
+    icon_name: str
+    build_widget: Callable
+
+
+@dataclass
+class ExtraGroup:
+    """Descriptor for a custom preferences group appended to an existing tab.
+
+    Unlike :class:`ExtraTab`, this injects content into one of the built-in
+    tabs.  The group is appended to the end of the tab's content box, so it
+    needs no positional anchoring (which libadwaita's containers don't support
+    cleanly anyway).
+
+    Attributes:
+        tab_name:      Name of the built-in tab to append into ('general',
+                       'shortcuts', or 'advanced').
+        build_widget:  Zero-argument callable that returns the Gtk.Widget to
+                       append (typically an AdwPreferencesGroup).  Called once
+                       at init time.
+    """
+    tab_name: str
+    build_widget: Callable
 
 
 class NullVirtualDisplayManager(GObject.GObject):
@@ -81,6 +121,7 @@ class RuntimeEnvironment(GObject.GObject):
         GObject.GObject.__init__(self)
         self._breezy_enabled = False
         self._virtual_display_manager = None
+        self._extra_settings = None
 
     # --- identity ---------------------------------------------------------
 
@@ -125,22 +166,167 @@ class RuntimeEnvironment(GObject.GObject):
         """
         return None
 
-    # --- optional views / fields ------------------------------------------
+    # --- connected-device UI customisation --------------------------------
+    #
+    # These hooks let subclasses tailor the connected-device view without
+    # touching any GTK template.  Three concepts:
+    #
+    #   excluded_field_ids  — set of Gtk.Template.Child() names whose parent
+    #                         AdwActionRow should be hidden in this environment.
+    #
+    #   excluded_tab_names  — set of AdwViewStackPage names (e.g. 'shortcuts',
+    #                         'advanced') whose tab should be hidden entirely.
+    #
+    #   extra_tabs          — ordered list of ExtraTab descriptors that the
+    #                         connected-device view appends after the built-in
+    #                         tabs.  Each descriptor is a namedtuple-like object
+    #                         with (name, title, icon_name, build_widget) where
+    #                         build_widget() → Gtk.Widget is called once at init.
+    #
+    # Default: show everything, add nothing.
 
     @property
-    def shows_no_device_view(self):
-        """Whether a dedicated "no device connected" view should be shown.
+    def excluded_field_ids(self):
+        """Return a frozenset of ConnectedDevice template-child names to hide.
 
-        When False, the connected-device view is always shown and
-        :meth:`no_device_label` supplies the label used when no device is
-        actually connected.
+        Each name must match a ``Gtk.Template.Child()`` attribute on
+        ``ConnectedDevice``.  The connected-device view will call
+        ``set_visible(False)`` on the parent ``AdwActionRow`` of each widget
+        whose ID is listed here.
+
+        The default set includes fields that are specific to a particular host
+        environment (e.g. GNOME-only settings) and should be hidden unless the
+        runtime explicitly wants them.
+
+        Example::
+
+            @property
+            def excluded_field_ids(self):
+                return frozenset(['effect_enable_switch'])
         """
-        return False
+        # text_scaling_scale is GNOME-specific (org.gnome.desktop.interface);
+        # hidden by default, exposed only by runtimes that run under GNOME.
+        return frozenset(['text_scaling_scale'])
 
-    def no_device_label(self):
-        """Label shown in place of a device name when no device is connected
-        (only relevant when :attr:`shows_no_device_view` is False)."""
-        return _("No supported glasses connected")
+    @property
+    def excluded_tab_names(self):
+        """Return a frozenset of AdwViewStackPage names to hide.
+
+        Built-in page names are ``'general'``, ``'shortcuts'``, and
+        ``'advanced'``.  The connected-device view sets each matching page's
+        ``visible`` property to ``False`` so the tab does not appear in the
+        switcher.
+
+        Example::
+
+            @property
+            def excluded_tab_names(self):
+                return frozenset(['shortcuts'])
+        """
+        return frozenset()
+
+    @property
+    def extra_tabs(self):
+        """Return an ordered list of :class:`ExtraTab` descriptors to append.
+
+        Each :class:`ExtraTab` is appended to the ``AdwViewStack`` after the
+        built-in tabs.  The connected-device view calls ``build_widget()`` once
+        during initialisation and passes the resulting widget to
+        ``AdwViewStack.add_titled_with_icon``.
+
+        Example::
+
+            @property
+            def extra_tabs(self):
+                return [ExtraTab(
+                    name='host_shortcuts',
+                    title=_('Keyboard Shortcuts'),
+                    icon_name='preferences-desktop-keyboard-shortcuts-symbolic',
+                    build_widget=self._build_shortcuts_widget,
+                )]
+        """
+        return []
+
+    @property
+    def extra_groups(self):
+        """Return an ordered list of :class:`ExtraGroup` descriptors to append.
+
+        Each :class:`ExtraGroup` is appended to the content box of a built-in
+        tab.  Use this to add a self-contained preferences group (e.g. a
+        runtime-specific virtual-displays interface) without giving it its own
+        tab.  The connected-device view calls ``build_widget()`` once during
+        initialisation.
+
+        Example::
+
+            @property
+            def extra_groups(self):
+                return [ExtraGroup(
+                    tab_name='general',
+                    build_widget=self._build_virtual_displays_group,
+                )]
+        """
+        return []
+
+    def create_extra_settings(self):
+        """Instantiate any additional Gio.Settings objects this runtime needs.
+
+        Override to return a ``Gio.Settings`` instance (or any object with a
+        compatible bind/reset interface) for settings schemas beyond the core
+        Breezy schema.  The result is cached in :attr:`extra_settings` and
+        passed to :meth:`bind_runtime_fields` and :meth:`reset_excluded_fields`.
+
+        Return ``None`` (the default) if no extra settings are needed.
+
+        Example::
+
+            def create_extra_settings(self):
+                return Gio.Settings.new("org.gnome.desktop.interface")
+        """
+        return None
+
+    @property
+    def extra_settings(self):
+        """Cached result of :meth:`create_extra_settings`."""
+        if self._extra_settings is None:
+            self._extra_settings = self.create_extra_settings()
+        return self._extra_settings
+
+    def reset_excluded_fields(self, settings):
+        """Reset any excluded fields to their appropriate locked values.
+
+        Called by the connected-device view after hiding excluded rows.
+        ``settings`` is the core Breezy ``Gio.Settings`` object.  Access any
+        additional settings via :attr:`extra_settings`.
+
+        Example::
+
+            def reset_excluded_fields(self, settings):
+                settings.reset('disable-physical-displays')
+                settings.reset('use-optimal-monitor-config')
+        """
+
+    def bind_runtime_fields(self, settings, widget_map):
+        """Bind any runtime-specific fields not wired in ConnectedDevice.
+
+        Called once during initialisation, after the standard GSettings
+        bindings have been established and before rows are hidden.  Use this
+        to bind fields whose settings schema is environment-specific.
+        ``settings`` is the core Breezy ``Gio.Settings`` object; access any
+        additional settings via :attr:`extra_settings`.  ``widget_map`` is a
+        ``{name: widget}`` dict of all ``Gtk.Template.Child()`` attributes on
+        ``ConnectedDevice``.
+
+        Example::
+
+            def bind_runtime_fields(self, settings, widget_map):
+                if self.extra_settings:
+                    self.extra_settings.bind(
+                        'text-scaling-factor',
+                        widget_map['text_scaling_adjustment'], 'value',
+                        Gio.SettingsBindFlags.DEFAULT,
+                    )
+        """
 
     # --- virtual displays -------------------------------------------------
 
