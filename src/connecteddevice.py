@@ -134,6 +134,7 @@ class ConnectedDevice(Gtk.Box):
         self.settings.bind('viewport-offset-x', self.viewport_offset_x_adjustment, 'value', Gio.SettingsBindFlags.DEFAULT)
         self.settings.bind('viewport-offset-y', self.viewport_offset_y_adjustment, 'value', Gio.SettingsBindFlags.DEFAULT)
         self.settings.connect('changed::monitor-wrapping-scheme', self._handle_monitor_wrapping_scheme_setting_changed)
+        self.settings.connect('changed::curved-display', self._handle_curved_display_changed)
         self.display_zoom_on_focus_switch.connect('notify::active', self._handle_zoom_on_focus_switch_changed)
         self.monitor_wrapping_scheme_menu.connect('changed', self._handle_monitor_wrapping_scheme_menu_changed)
         self._handle_monitor_wrapping_scheme_setting_changed(self.settings, self.settings.get_string('monitor-wrapping-scheme'))
@@ -312,6 +313,9 @@ class ConnectedDevice(Gtk.Box):
 
     def _handle_monitor_wrapping_scheme_setting_changed(self, settings, val):
         self.monitor_wrapping_scheme_menu.set_active_id(val)
+
+    def _handle_curved_display_changed(self, settings, val):
+        self._on_virtual_displays_update(self.virtual_display_manager, None)
 
     def _handle_monitor_wrapping_scheme_menu_changed(self, widget):
         self.settings.set_string('monitor-wrapping-scheme', widget.get_active_id())
@@ -516,8 +520,14 @@ class ConnectedDevice(Gtk.Box):
     def _on_virtual_displays_update_gui(self, virtual_display_manager):
         effect_enabled = self.effect_enable_switch.get_active()
         virtual_displays_present = len(virtual_display_manager.displays) > 0
-        self.monitor_wrapping_scheme_menu.set_sensitive(effect_enabled and virtual_displays_present)
-        self.monitor_spacing_scale.set_sensitive(effect_enabled and virtual_displays_present)
+        curved_display = self.settings.get_boolean('curved-display')
+        multiple_displays_unlocked = (
+            virtual_displays_present
+            or curved_display
+            or self.runtime.multiple_displays_fields_always_unlocked
+        )
+        self.monitor_wrapping_scheme_menu.set_sensitive(effect_enabled and multiple_displays_unlocked)
+        self.monitor_spacing_scale.set_sensitive(effect_enabled and multiple_displays_unlocked)
 
         self.top_features_group.remove(self.launch_display_settings_row)
         for pid, child in self.virtual_displays_by_pid.items():

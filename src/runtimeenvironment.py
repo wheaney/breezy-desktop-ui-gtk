@@ -333,6 +333,17 @@ class RuntimeEnvironment(GObject.GObject):
                     )
         """
 
+    @property
+    def multiple_displays_fields_always_unlocked(self):
+        """Whether the multiple-displays fields (wrapping scheme, monitor spacing)
+        should always be enabled regardless of whether virtual displays are present.
+
+        Return True in environments where connected-display awareness is absent and
+        the user may always be running with multiple displays (e.g. Breezy Box).
+        The default is False — fields are gated on virtual displays being present.
+        """
+        return False
+
     # --- virtual displays -------------------------------------------------
 
     def is_virtual_display_supported(self):
