@@ -344,6 +344,11 @@ class RuntimeEnvironment(GObject.GObject):
         """
         return False
 
+    def no_device_label(self):
+        """Fallback device-name label used when no connected_device_name is
+        available. Override in environments where a more specific name is known."""
+        return _("XR Device")
+
     # --- virtual displays -------------------------------------------------
 
     def is_virtual_display_supported(self):

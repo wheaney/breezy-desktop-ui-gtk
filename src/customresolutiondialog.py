@@ -7,13 +7,14 @@ class CustomResolutionDialog(Gtk.Dialog):
 
     add_button = Gtk.Template.Child()
 
-    def __init__(self, on_add_callback):
+    def __init__(self, on_add_callback, max_width=None, max_height=None):
         super(Gtk.Dialog, self).__init__()
         self.init_template()
 
         self.on_add_callback = on_add_callback
 
-        self.content = CustomResolutionDialogContent(self.add_button, self._on_add_callback)
+        self.content = CustomResolutionDialogContent(
+            self.add_button, self._on_add_callback, max_width, max_height)
         self.get_content_area().append(self.content)
 
     def _on_add_callback(self, width, height):

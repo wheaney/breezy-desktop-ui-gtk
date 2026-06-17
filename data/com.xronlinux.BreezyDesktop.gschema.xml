@@ -289,5 +289,16 @@
         Framerate cap
       </description>
     </key>
+    <key name="breezy-box-host-window-management-available" type="b">
+      <default>
+        false
+      </default>
+      <summary>Host window management available</summary>
+      <description>
+        Whether the connected host can manage the Breezy Box display layout. When
+        true, layout changes are synced from the host rather than rearranged on
+        the box itself.
+      </description>
+    </key>
 	</schema>
 </schemalist>

@@ -116,6 +116,15 @@ class ConnectedDevice(Gtk.Box):
         self.runtime = RuntimeEnvironment.get_instance()
         self.virtual_display_manager = self.runtime.virtual_display_manager
 
+        # When the runtime hides the built-in virtual-displays row it supplies
+        # its own virtual-displays interface (via extra_fields) and owns the
+        # virtual_display_manager's data format. In that case the built-in
+        # handling here must stay out of the way: its displays-changed handler
+        # assumes the GNOME process-based {pid, width, height} entry shape and
+        # would crash on a runtime that uses a different one.
+        self._manages_builtin_virtual_displays = \
+            'virtual_displays_row' not in self.runtime.excluded_field_ids
+
         self.settings.bind('disable-physical-displays', self.disable_physical_displays_switch, 'active', Gio.SettingsBindFlags.DEFAULT)
         self.settings.connect('changed::display-distance', self._handle_display_distance)
         self.settings.bind('display-size', self.display_size_adjustment, 'value', Gio.SettingsBindFlags.DEFAULT)
@@ -214,18 +223,19 @@ class ConnectedDevice(Gtk.Box):
                 self._settings_displays_app_info = appinfo
                 break
 
-        self.virtual_display_manager.connect('notify::displays', self._on_virtual_displays_update)
-        self.add_virtual_display_menu.connect('changed', self._on_add_virtual_display_menu_changed)
-        self.remove_custom_resolution_button.connect('clicked', self._on_custom_resolution_option_remove)
-        self._on_virtual_displays_update(self.virtual_display_manager, None)
         self.virtual_displays_by_pid = {}
-
-        self._default_resolution_options_count = 2
         self._custom_resolution_options = []
-        self._custom_resolutions_file_path = Path(os.path.join(get_state_dir(), 'custom_resolutions.json'))
-        self._load_custom_resolutions()
-        for id in self._custom_resolution_options:
-            self.add_virtual_display_menu.insert(self._default_resolution_options_count, id, id)
+        if self._manages_builtin_virtual_displays:
+            self.virtual_display_manager.connect('notify::displays', self._on_virtual_displays_update)
+            self.add_virtual_display_menu.connect('changed', self._on_add_virtual_display_menu_changed)
+            self.remove_custom_resolution_button.connect('clicked', self._on_custom_resolution_option_remove)
+            self._on_virtual_displays_update(self.virtual_display_manager, None)
+
+            self._default_resolution_options_count = 2
+            self._custom_resolutions_file_path = Path(os.path.join(get_state_dir(), 'custom_resolutions.json'))
+            self._load_custom_resolutions()
+            for id in self._custom_resolution_options:
+                self.add_virtual_display_menu.insert(self._default_resolution_options_count, id, id)
 
         self._apply_runtime_customisations()
 
@@ -315,7 +325,10 @@ class ConnectedDevice(Gtk.Box):
         self.monitor_wrapping_scheme_menu.set_active_id(val)
 
     def _handle_curved_display_changed(self, settings, val):
-        self._on_virtual_displays_update(self.virtual_display_manager, None)
+        if self._manages_builtin_virtual_displays:
+            self._on_virtual_displays_update(self.virtual_display_manager, None)
+        else:
+            self._refresh_multiple_displays_sensitivity()
 
     def _handle_monitor_wrapping_scheme_menu_changed(self, widget):
         self.settings.set_string('monitor-wrapping-scheme', widget.get_active_id())
@@ -353,6 +366,8 @@ class ConnectedDevice(Gtk.Box):
 
         for widget in self.all_enabled_state_inputs:
             widget.set_sensitive(requesting_enabled)
+
+        self._refresh_multiple_displays_sensitivity()
 
         if not self.runtime.is_virtual_display_supported():
             self.virtual_displays_row.set_subtitle(
@@ -517,9 +532,9 @@ class ConnectedDevice(Gtk.Box):
     def _on_virtual_displays_update(self, virtual_display_manager, val):
         GLib.idle_add(self._on_virtual_displays_update_gui, virtual_display_manager)
 
-    def _on_virtual_displays_update_gui(self, virtual_display_manager):
+    def _refresh_multiple_displays_sensitivity(self):
         effect_enabled = self.effect_enable_switch.get_active()
-        virtual_displays_present = len(virtual_display_manager.displays) > 0
+        virtual_displays_present = len(self.virtual_display_manager.displays) > 0
         curved_display = self.settings.get_boolean('curved-display')
         multiple_displays_unlocked = (
             virtual_displays_present
@@ -528,6 +543,9 @@ class ConnectedDevice(Gtk.Box):
         )
         self.monitor_wrapping_scheme_menu.set_sensitive(effect_enabled and multiple_displays_unlocked)
         self.monitor_spacing_scale.set_sensitive(effect_enabled and multiple_displays_unlocked)
+
+    def _on_virtual_displays_update_gui(self, virtual_display_manager):
+        self._refresh_multiple_displays_sensitivity()
 
         self.top_features_group.remove(self.launch_display_settings_row)
         for pid, child in self.virtual_displays_by_pid.items():
