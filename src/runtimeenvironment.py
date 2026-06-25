@@ -349,6 +349,34 @@ class RuntimeEnvironment(GObject.GObject):
         available. Override in environments where a more specific name is known."""
         return _("XR Device")
 
+    # --- IPC --------------------------------------------------------------
+
+    def create_ipc(self, logger, config_home):
+        """Instantiate the XRDriverIPC for this environment.
+
+        Override to pass environment-specific constructor arguments such as
+        ``tokens_endpoint`` or ``write_control_flags_hook``.
+        """
+        from .xrdriveripc import XRDriverIPC
+        return XRDriverIPC(logger, config_home,
+                           write_control_flags_hook=self.write_control_flags_hook)
+
+    def write_control_flags_hook(self, flags, default_write):
+        """Intercept or transform control-flag writes before they reach the driver.
+
+        ``flags`` is the dict passed by the UI. ``default_write(flags)`` performs
+        the standard write. The default implementation is a pass-through.
+
+        Override to filter keys, add special handling, or redirect specific flags::
+
+            def write_control_flags_hook(self, flags, default_write):
+                if 'refresh_device_license' in flags:
+                    self._handle_license_refresh()
+                    flags = {k: v for k, v in flags.items() if k != 'refresh_device_license'}
+                default_write(flags)
+        """
+        default_write(flags)
+
     # --- virtual displays -------------------------------------------------
 
     def is_virtual_display_supported(self):

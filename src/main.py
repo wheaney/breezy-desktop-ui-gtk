@@ -17,6 +17,7 @@ from .files import get_config_dir, get_state_dir
 from .licensedialog import LicenseDialog
 from .statemanager import StateManager
 from .window import BreezydesktopWindow
+from .runtimeenvironment import RuntimeEnvironment
 from .xrdriveripc import XRDriverIPC
 
 log_dir = os.path.join(get_state_dir(), 'logs/ui')
@@ -36,7 +37,7 @@ def excepthook(exc_type, exc_value, exc_traceback):
 
 sys.excepthook = excepthook
 
-XRDriverIPC.set_instance(XRDriverIPC(logger, get_config_dir()))
+XRDriverIPC.set_instance(RuntimeEnvironment.get_instance().create_ipc(logger, get_config_dir()))
 
 if GLib.MAJOR_VERSION * 100 + GLib.MINOR_VERSION >= 274:
     APPLICATION_FLAGS = Gio.ApplicationFlags.DEFAULT_FLAGS

@@ -99,7 +99,7 @@ class LicenseDialogContent(Gtk.Box):
         self.request_token.set_editable(False)
         self.verify_token.set_editable(False)
         if self.ipc.verify_token(token):
-            self.ipc.write_control_flags({'refresh_device_license': True})
+            self._refresh_license(widget)
         else:
             self.request_token.set_editable(True)
             self.verify_token.set_editable(True)
