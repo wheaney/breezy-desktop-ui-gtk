@@ -7,13 +7,13 @@ from .settingsmanager import SettingsManager
 
 # ported from https://github.com/velitasali/gnome-shell-extension-awesome-tiles
 @Gtk.Template(resource_path='/com/xronlinux/BreezyDesktop/gtk/shortcut-dialog.ui')
-class ShortcutDialog(Gtk.Dialog):
+class ShortcutDialog(Gtk.Window):
     __gtype_name__ = 'ShortcutDialog'
 
     event_controller = Gtk.Template.Child()
 
     def __init__(self, settings_key):
-        super(Gtk.Dialog, self).__init__()
+        super(Gtk.Window, self).__init__()
         self.init_template()
 
         self.settings_key = settings_key

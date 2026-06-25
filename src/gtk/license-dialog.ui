@@ -1,16 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
   <requires lib="gtk" version="4.0"/>
-  <template class="LicenseDialog" parent="GtkDialog">
+  <template class="LicenseDialog" parent="GtkWindow">
     <property name="title" translatable="yes">License Details</property>
     <property name="modal">1</property>
     <property name="default_width">440</property>
     <property name="default_height">200</property>
-    <property name="use-header-bar">1</property>
-    <child type="action">
-      <object class="GtkButton" id="refresh_license_button">
-        <property name="icon-name">view-refresh-symbolic</property>
+    <property name="titlebar">
+      <object class="GtkHeaderBar">
+        <child type="end">
+          <object class="GtkButton" id="refresh_license_button">
+            <property name="icon-name">view-refresh-symbolic</property>
+          </object>
+        </child>
       </object>
-    </child>
+    </property>
+    <property name="child">
+      <object class="GtkBox" id="content_area">
+        <property name="orientation">vertical</property>
+      </object>
+    </property>
   </template>
 </interface>

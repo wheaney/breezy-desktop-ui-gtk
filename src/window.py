@@ -96,7 +96,6 @@ class BreezydesktopWindow(Gtk.ApplicationWindow):
             self.connected_device.set_device_name(state_manager.connected_device_name or self.runtime.no_device_label())
         
         self.set_resizable(True)
-        self.set_default_size(1, 1)
         
         return False
 

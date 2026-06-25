@@ -1,12 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
   <requires lib="gtk" version="4.0"/>
-  <template class="ShortcutDialog" parent="GtkDialog">
+  <template class="ShortcutDialog" parent="GtkWindow">
     <property name="title" translatable="yes">Assign Keyboard Shortcut</property>
     <property name="modal">1</property>
     <property name="default_width">440</property>
     <property name="default_height">200</property>
-    <child internal-child="content_area">
+    <property name="titlebar">
+      <object class="GtkHeaderBar"/>
+    </property>
+    <property name="child">
       <object class="GtkBox">
         <property name="orientation">vertical</property>
         <property name="spacing">2</property>
@@ -21,7 +24,7 @@
           </object>
         </child>
       </object>
-    </child>
+    </property>
     <child>
       <object class="GtkEventControllerKey" id="event_controller" />
     </child>

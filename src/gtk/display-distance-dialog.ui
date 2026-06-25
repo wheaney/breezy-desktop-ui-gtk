@@ -1,17 +1,36 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
   <requires lib="gtk" version="4.0"/>
-  <template class="DisplayDistanceDialog" parent="GtkDialog">
+  <template class="DisplayDistanceDialog" parent="GtkWindow">
     <property name="modal">1</property>
-    <property name="use-header-bar">1</property>
-    <child type="action">
-      <object class="GtkButton" id="save_button">
-        <property name="label" translatable="yes">Done</property>
-        <property name="margin-top">10</property>
-        <property name="margin-bottom">10</property>
-        <property name="margin-start">10</property>
-        <property name="margin-end">10</property>
+    <property name="titlebar">
+      <object class="GtkHeaderBar"/>
+    </property>
+    <property name="child">
+      <object class="GtkBox">
+        <property name="orientation">vertical</property>
+        <child>
+          <object class="GtkBox" id="content_area">
+            <property name="orientation">vertical</property>
+            <property name="vexpand">1</property>
+          </object>
+        </child>
+        <child>
+          <object class="GtkBox" id="action_area">
+            <property name="orientation">horizontal</property>
+            <property name="halign">end</property>
+            <child>
+              <object class="GtkButton" id="save_button">
+                <property name="label" translatable="yes">Done</property>
+                <property name="margin-top">10</property>
+                <property name="margin-bottom">10</property>
+                <property name="margin-start">10</property>
+                <property name="margin-end">10</property>
+              </object>
+            </child>
+          </object>
+        </child>
       </object>
-    </child>
+    </property>
   </template>
 </interface>
